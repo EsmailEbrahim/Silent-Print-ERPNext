@@ -1,6 +1,7 @@
 import frappe, base64
 # from frappe.utils.pdf import get_pdf,cleanup
 from frappe import _
+from frappe.utils import get_url
 
 @frappe.whitelist()
 def print_silently(doctype, name, print_format, print_type):
@@ -18,7 +19,13 @@ def set_master_tab(tab_id):
 
 @frappe.whitelist()
 def create_pdf(doctype, name, silent_print_format, doc=None, no_letterhead=0):
+	site_url = get_url()
+
 	html = frappe.get_print(doctype, name, silent_print_format, doc=doc, no_letterhead=no_letterhead)
+	
+	html = html.replace('href="/', f'href="{site_url}/')
+	html = html.replace('src="/', f'src="{site_url}/')
+
 	if not frappe.db.exists("Silent Print Format", silent_print_format):
 		return
 	silent_print_format = frappe.get_doc("Silent Print Format", silent_print_format)
@@ -47,7 +54,7 @@ import pdfkit
 import six
 import io
 from bs4 import BeautifulSoup
-from PyPDF2 import PdfFileReader, PdfFileWriter
+from PyPDF2 import PdfReader, PdfWriter
 from frappe.utils import scrub_urls
 from frappe.utils.pdf import get_file_data_from_writer, read_options_from_html, get_wkhtmltopdf_version
 
@@ -59,9 +66,17 @@ def get_pdf(html, options=None, output=None):
 	html, options = prepare_options(html, options)
 
 	options.update({
-		"disable-javascript": "",
-		"disable-local-file-access": ""
+		"enable-local-file-access": "",       # Allow local file access
+		"disable-smart-shrinking": "",       # Prevent scaling issues
+		"javascript-delay": "2000",          # Wait for JavaScript to render
+		"no-stop-slow-scripts": "",          # Prevent script timeouts
+		"debug-javascript": ""               # Log JavaScript errors (if needed)
 	})
+
+	# options.update({
+	# 	"disable-javascript": "",
+	# 	"disable-local-file-access": ""
+	# })
 
 	filedata = ''
 	if LooseVersion(get_wkhtmltopdf_version()) > LooseVersion('0.12.3'):
@@ -73,7 +88,7 @@ def get_pdf(html, options=None, output=None):
 
 		# https://pythonhosted.org/PyPDF2/PdfFileReader.html
 		# create in-memory binary streams from filedata and create a PdfFileReader object
-		reader = PdfFileReader(io.BytesIO(filedata))
+		reader = PdfReader(io.BytesIO(filedata))
 	except OSError as e:
 		if any([error in str(e) for error in PDF_CONTENT_ERRORS]):
 			if not filedata:
@@ -81,7 +96,7 @@ def get_pdf(html, options=None, output=None):
 
 			# allow pdfs with missing images if file got created
 			if output:  # output is a PdfFileWriter object
-				output.appendPagesFromReader(reader)
+				output.append_pages_from_reader(reader)
 		else:
 			raise
 
@@ -91,11 +106,11 @@ def get_pdf(html, options=None, output=None):
 			password = frappe.safe_encode(password)
 
 	if output:
-		output.appendPagesFromReader(reader)
+		output.append_pages_from_reader(reader)
 		return output
 
-	writer = PdfFileWriter()
-	writer.appendPagesFromReader(reader)
+	writer = PdfWriter()
+	writer.append_pages_from_reader(reader)
 
 	if "password" in options:
 		writer.encrypt(password)
