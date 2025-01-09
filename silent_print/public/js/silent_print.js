@@ -45,9 +45,9 @@ $(document).on('app_ready', function () {
 
     var printService = new frappe.silent_print.WebSocketPrinter();
 
-    setTimeout(() => {
-        $(".navbar-brand.navbar-home").before('<div id="navbar-printer" class="navbar-center ellipsis" style="color: red; margin-right: 5px;"><i class="fa fa-print" onclick="frappe.setMasterTab()"></i></div>')
-    }, 100);
+    // setTimeout(() => {
+    //     $(".navbar-brand.navbar-home").before('<div id="navbar-printer" class="navbar-center ellipsis" style="color: red; margin-right: 5px;"><i class="fa fa-print" onclick="frappe.setMasterTab()"></i></div>')
+    // }, 100);
 
     frappe.realtime.on("update_master_tab", function(data) {
         console.log("update_master_tab", data);
