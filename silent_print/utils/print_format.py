@@ -22,6 +22,9 @@ def create_pdf(doctype, name, silent_print_format, doc=None, no_letterhead=0):
 	site_url = get_url()
 
 	html = frappe.get_print(doctype, name, silent_print_format, doc=doc, no_letterhead=no_letterhead)
+	html_as_pdf = frappe.get_print(doctype, name, silent_print_format, doc=doc, no_letterhead=no_letterhead, as_pdf=True)
+	
+	html_copy = html
 	
 	html = html.replace('href="/', f'href="{site_url}/')
 	html = html.replace('src="/', f'src="{site_url}/')
@@ -30,21 +33,34 @@ def create_pdf(doctype, name, silent_print_format, doc=None, no_letterhead=0):
 		return
 	silent_print_format = frappe.get_doc("Silent Print Format", silent_print_format)
 	options = get_pdf_options(silent_print_format)
-	pdf = get_pdf(html, options=options)
+	old_options = options.copy()
+	pdf, html_options = get_pdf(html, options=options)
 	pdf_base64 = base64.b64encode(pdf)
 	return {
 		"pdf_base64": pdf_base64.decode(),
-		"print_type": silent_print_format.default_print_type
+		"print_type": silent_print_format.default_print_type,
+		"options": options,
+		"old_options": old_options,
+		"html_copy": html_copy,
+		"html_options": html_options,
 	}
 
 def get_pdf_options(silent_print_format):	
 	options = {
-		"page-size": silent_print_format.get("page_size") or "A4"
+		"page-size": silent_print_format.get("page_size") or "A4",
+		"margin-left": "0mm",
+        "margin-right": "0mm",
+        "margin-top": "0mm",
+        "margin-bottom": "0mm",
 	}
 	if silent_print_format.get("page_size") == "Custom":
 		options = {
 			"page-width": silent_print_format.get("custom_width"),
-			"page-height": silent_print_format.get("custom_height")
+			"page-height": silent_print_format.get("custom_height"),
+			"margin-left": "0mm",
+			"margin-right": "0mm",
+			"margin-top": "0mm",
+			"margin-bottom": "0mm",
 		}
 	return options
 
@@ -63,14 +79,18 @@ PDF_CONTENT_ERRORS = ["ContentNotFoundError", "ContentOperationNotPermittedError
 
 def get_pdf(html, options=None, output=None):
 	html = scrub_urls(html)
-	html, options = prepare_options(html, options)
+	html, options, html_options = prepare_options(html, options)
 
 	options.update({
 		"enable-local-file-access": "",       # Allow local file access
 		"disable-smart-shrinking": "",       # Prevent scaling issues
 		"javascript-delay": "2000",          # Wait for JavaScript to render
 		"no-stop-slow-scripts": "",          # Prevent script timeouts
-		"debug-javascript": ""               # Log JavaScript errors (if needed)
+		"debug-javascript": "",
+		"margin-left": "0mm",
+		"margin-right": "0mm",
+		"margin-top": "0mm",
+		"margin-bottom": "0mm",
 	})
 
 	# options.update({
@@ -117,7 +137,7 @@ def get_pdf(html, options=None, output=None):
 
 	filedata = get_file_data_from_writer(writer)
 
-	return filedata
+	return filedata, html_options
 
 
 def prepare_options(html, options):
@@ -155,4 +175,4 @@ def prepare_options(html, options):
 	# options['margin-left'] = '50mm'
 
 
-	return html, options
+	return html, options, html_options
